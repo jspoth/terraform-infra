@@ -38,7 +38,7 @@ module "eks" {
     # This is your "Bootstrap/System" group
     dev_nodes = {
       ami_type       = "AL2023_x86_64_STANDARD" # Recommended for K8s 1.31
-      instance_types = ["t3.medium"]             # t3.micro is often too small for EKS system pods
+      instance_types = ["t3.small"]             # t3.micro is often too small for EKS system pods
 
       min_size     = 1
       max_size     = 3
