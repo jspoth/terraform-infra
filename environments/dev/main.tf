@@ -1,7 +1,3 @@
-provider "aws" {
-  region = "us-east-2"
-}
-
 module "vpc" {
   source = "../../modules/vpc"
 
@@ -19,7 +15,7 @@ module "eks" {
   vpc_id          = module.vpc.vpc_id
   subnet_ids      = module.vpc.public_subnet_ids
 
-  node_groups = {
+  eks_managed_node_groups = {
     dev_nodes = {
       desired_capacity = 2
       max_capacity     = 3
