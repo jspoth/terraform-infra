@@ -2,25 +2,21 @@ module "karpenter" {
   source  = "terraform-aws-modules/eks/aws//modules/karpenter"
   version = "~> 21.0"
 
-  cluster_name = var.cluster_name
+  cluster_name = module.eks.cluster_name # Use the output from your EKS module
 
-  # --- Pod Identity (The modern replacement for IRSA) ---
+  # --- Pod Identity ---
   enable_pod_identity             = true
   create_pod_identity_association = true
-  # Note: The v21 module creates the association in kube-system by default.
+  namespace                       = "karpenter" # Best practice for SRE projects
 
-  # --- Node IAM Role (For the EC2 instances Karpenter launches) ---
+  # --- Node IAM Role ---
   create_node_iam_role = true
   node_iam_role_additional_policies = {
     AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
   }
 
-  # --- Spot & Event Handling ---
-  # This creates the SQS queue and EventBridge rules for Spot interruptions
+  # --- Spot Support ---
   enable_spot_termination = true
-
-  # --- Permissions ---
-  enable_v1_permissions = true
 }
 
 resource "aws_eks_access_entry" "karpenter_node" {
