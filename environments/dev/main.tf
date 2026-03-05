@@ -33,7 +33,7 @@ module "eks" {
       labels = {
         Environment = "dev"
         Capacity    = "spot"
-        test = "ci-verified"
+        test = "ci-verified2"
       }
     }
   }
