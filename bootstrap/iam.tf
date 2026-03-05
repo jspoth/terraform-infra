@@ -29,7 +29,7 @@ resource "aws_iam_role_policy_attachment" "terraform_admin" {
 }
 
 
-resource "aws_iam_role_policy" "github_actions_iam_bridge" {
+rresource "aws_iam_role_policy" "github_actions_iam_bridge" {
   name = "github-actions-iam-bridge"
   role = aws_iam_role.github_actions_role.id
 
@@ -40,6 +40,9 @@ resource "aws_iam_role_policy" "github_actions_iam_bridge" {
         Effect = "Allow"
         Action = [
           "iam:GetRole",
+          "iam:ListRolePolicies",      # <--- ADD THIS
+          "iam:GetRolePolicy",         # <--- ADD THIS
+          "iam:ListAttachedRolePolicies", # <--- ADD THIS (Highly recommended)
           "iam:CreateRole",
           "iam:DeleteRole",
           "iam:PutRolePolicy",
