@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./environments/dev #for now just use dev
+        working-directory: ./environments/staging
     steps:
       - uses: actions/checkout@v4
 
