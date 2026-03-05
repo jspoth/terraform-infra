@@ -52,7 +52,7 @@ resource "aws_iam_role_policy" "github_actions_iam_bridge" {
           "iam:TagRole",
           "iam:GetPolicy",
           "iam:GetOpenIDConnectProvider",
-          "IAM: GetPolicyVersion"
+          "iam:GetPolicyVersion"
         ]
         Resource = "*"
       }
