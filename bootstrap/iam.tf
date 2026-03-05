@@ -29,7 +29,7 @@ resource "aws_iam_role_policy_attachment" "terraform_admin" {
 }
 
 
-rresource "aws_iam_role_policy" "github_actions_iam_bridge" {
+resource "aws_iam_role_policy" "github_actions_iam_bridge" {
   name = "github-actions-iam-bridge"
   role = aws_iam_role.github_actions_role.id
 
@@ -49,7 +49,9 @@ rresource "aws_iam_role_policy" "github_actions_iam_bridge" {
           "iam:AttachRolePolicy",
           "iam:DetachRolePolicy",
           "iam:PassRole",
-          "iam:TagRole"
+          "iam:TagRole",
+          "iam:GetPolicy",
+          "iam:GetOpenIDConnectProvider"
         ]
         Resource = "*"
       }
