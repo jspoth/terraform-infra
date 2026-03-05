@@ -1,4 +1,7 @@
 name: Terraform
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false # Important: Let the current one finish so it unlocks properly
 on:
   pull_request:
   push:
@@ -28,4 +31,4 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Plan
-        run: terraform init && terraform plan
+        run: terraform init && terraform plan -lock-timeout=3m
