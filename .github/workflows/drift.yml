@@ -47,11 +47,4 @@ jobs:
         if: steps.plan.outputs.exitcode == '2'
         run: |
           echo "### ⚠️ DRIFT DETECTED in ${{ matrix.environment }}!" >> $GITHUB_STEP_SUMMARY
-          echo "The following changes were found between code and cloud:" >> $GITHUB_STEP_SUMMARY
-          echo '```diff' >> $GITHUB_STEP_SUMMARY
-          # This grep pulls only the lines that show the actual resource changes
-          grep -E "resource|~|\+|-" drift_output.txt >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-
-          # Also print to the console for easy viewing in logs
-          cat drift_output.txt
+          echo "${{ steps.plan.outputs.stdout }}"
