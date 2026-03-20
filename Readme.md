@@ -1,57 +1,135 @@
-# Infrastructure Setup Overview
-## 1️⃣ Setup S3 + DynamoDB for Terraform Remote State
+## 🏗️ Architectural Overview
 
-### 🔹 Purpose
-Configure remote state management to enable safe, collaborative infrastructure deployments.
-### 🔹 Components
-* **S3 Bucket**
-  * Stores the Terraform state file remotely
-* **DynamoDB Table**
-  * Provides state locking to prevent concurrent modifications
+The repository follows a **Decoupled Root Module** pattern to balance reusability with environment stability.
 
-### 🔹 Prevents
-* Concurrent `terraform apply`
-* State corruption
-* Accidental overwrites
-
-### 🔹 Enables
-* Team collaboration
-* Safe CI/CD execution
-* Centralized state management
+* **`/modules`**: Source of truth for infrastructure components (VPC, EKS, IAM). Versioned and reusable across environments.
+* **`/environments`**: Contains live state definitions for `dev` and `prod`. Each environment maintains its own S3 backend and DynamoDB state lock.
+* **`.github/workflows`**: The "Control Plane" of the repo. Uses **Reusable Workflows** to standardize CI/CD across all environments.
 
 ---
 
-## 2️⃣ Setup VPC & Subnets (Prerequisite for EKS)
+## 🗂 Repository Structure
 
-### 🔹 Purpose
-Provision networking infrastructure required for deploying Amazon EKS.
-
-### 🔹 Requirements
-* VPC
-* Subnets (across multiple Availability Zones)
-* Security Groups
-
-### 🔹 Key Notes
-* Worker nodes must reside in subnets
-* Pods receive IP addresses from the VPC (via AWS CNI plugin)
+```text
+terraform-infra/
+├── modules/              # Reusable infrastructure modules (VPC, EKS, IAM, etc.)
+├── environments/
+│   ├── dev/              # Development environment configs
+│   └── prod/             # Production environment configs
+├── .github/workflows/    # Reusable CI/CD workflows
+└── README.md
+```
 
 ---
 
-## 3 Setup karpenter
+## 🚀 Key Engineering Features
 
-### Purpose
-Eliminate the need for static Auto Scaling Groups (ASGs) by implementing just-in-time, pod-aware node provisioning. Karpenter observes unschedulable pods and launches the most optimal EC2 instance (size, type, and billing model) to meet their requirements.
+### 🔐 Zero-Trust OIDC Authentication
 
-### 🔹 Components
-* Karpenter Controller: Runs as a pod in the kube-system or karpenter namespace.
-* EC2NodeClass: AWS-specific configuration (Subnets, Security Groups, AMIs, and IAM Roles).
-* NodePool: The logic layer that defines which instance types and zones Karpenter is allowed to use.
-* SQS & EventBridge: Handles "Spot Interruption" notices to gracefully drain nodes before AWS reclaims them.
+* Eliminates long-lived IAM keys.
+* Roles are scoped by GitHub "Subject" claims.
+* Keyless, short-lived tokens generated dynamically per job.
 
-### 🔹 Key Advantages
-* Cost Efficiency: Automatically prioritizes EC2 Spot Instances with a 70-90% discount over On-Demand.
-* Performance: Launches new nodes in milliseconds vs minutes for traditional ASGs.
-* Bin-packing: Consolidates workloads onto fewer nodes to minimize "wasted" CPU/RAM.
+### 🔍 Active Drift Detection
+
+* Detects out-of-band changes in AWS.
+* Uses raw Terraform exit codes for accurate drift alerts.
+
+### 🛠️ Standardized CI/CD (Reusable Workflows)
+
+* Centralized workflows for Linting, Validation, and Costing.
+* DRY architecture ensures changes propagate automatically across environments.
 
 ---
+
+## 💡 Prerequisites
+
+* Terraform CLI ≥ 1.7.0
+* AWS CLI configured (optional for local testing)
+* GitHub account for OIDC authentication
+* Optional: Infracost CLI for local cost estimation
+
+---
+
+## 📖 Getting Started
+
+### Local Development
+
+1. Navigate to the environment:
+
+```bash
+cd environments/dev
+```
+
+2. Initialize Terraform:
+
+```bash
+terraform init
+```
+
+3. Preview changes:
+
+```bash
+terraform plan -out=tfplan.binary
+```
+
+4. Apply changes:
+
+```bash
+terraform apply tfplan.binary
+```
+
+---
+
+### CI/CD Workflow
+
+1. Open a Pull Request to `main`.
+2. Check **GitHub Actions Summary** for drift alerts.
+3. Merge to trigger automated deployment.
+
+---
+
+## ⚙️ Optional Add-ons
+
+* **Karpenter**: Dynamic EKS node provisioning
+* **CloudWatch Logging**: Centralized cluster logs
+* **S3 Logging Buckets**: Store app logs and artifacts
+* **Infracost**: Provides immediate visibility into financial impact of changes.
+* **Security Scanning (Checkov)**: Add a "Security" job to your reusable workflow to catch misconfigured Security Groups or unencrypted EKS secrets before they reach AWS.
+
+---
+
+
+## 🖼 Architecture Diagram (ASCII)
+
+```text
+           ┌─────────────┐
+           │  GitHub PR  │
+           └─────┬───────┘
+                 │
+                 ▼
+        ┌────────────────┐
+        │ GitHub Actions │
+        │  CI/CD Control │
+        └─────┬──────────┘
+              │
+     ┌────────┴─────────┐
+     │ Terraform Apply   │
+     │ (Modules + Env)   │
+     └────────┬─────────┘
+              │
+   ┌──────────┴───────────┐
+   │      AWS Infra        │
+   │ VPC / Subnets / EKS   │
+   │ IAM / Logging / Add-ons│
+   └───────────────────────┘
+```
+
+---
+
+## 📚 References
+
+* Terraform docs: [https://developer.hashicorp.com/terraform](https://developer.hashicorp.com/terraform)
+* AWS Terraform provider: [https://registry.terraform.io/providers/hashicorp/aws/latest/docs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
+* Infracost docs: [https://www.infracost.io/docs/](https://www.infracost.io/docs/)
 
