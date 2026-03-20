@@ -36,13 +36,14 @@ jobs:
         uses: hashicorp/setup-terraform@v4
 
       - name: Terraform Init
-        run: terraform init
+        run: rm -rf .terraform && terraform init
 
       - name: Check for Drift
         id: plan
         run: |
           # Use a temporary file to catch the exit code
           set +e
+          terraform plan -detailed-exitcode -no-color
           terraform plan -detailed-exitcode -no-color > drift_output.txt
           EXIT_CODE=$?
           echo "exitcode=$EXIT_CODE"
