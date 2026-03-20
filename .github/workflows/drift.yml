@@ -37,6 +37,11 @@ jobs:
       - name: Terraform Init
         run: rm -rf .terraform && terraform init
 
+      - name: Code Verification
+        run: |
+          echo "Checking the value of min_size in environments/dev/main.tf:"
+          grep "min_size" environments/dev/main.tf
+          
       - name: Check for Drift
         id: plan
         run: |
