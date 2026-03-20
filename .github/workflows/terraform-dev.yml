@@ -13,13 +13,18 @@ permissions:
   pull-requests: write # To post plan comments
 
 jobs:
-  terraform:
+  validate:
+    uses: ./.github/workflows/lint.yml
+
+  deploy:
+    needs: validate # Only runs if linting/validation passes
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./environments/dev
     steps:
-      - uses: actions/checkout@v4
+      - name: checkout
+        uses: actions/checkout@v4
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4

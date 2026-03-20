@@ -20,9 +20,9 @@ module "karpenter" {
 }
 
 resource "aws_eks_access_entry" "karpenter_node" {
-  cluster_name      = var.cluster_name
-  principal_arn     = module.karpenter.node_iam_role_arn
-  type              = "EC2_LINUX" # Grants permission for nodes to join as workers
+  cluster_name  = var.cluster_name
+  principal_arn = module.karpenter.node_iam_role_arn
+  type          = "EC2_LINUX" # Grants permission for nodes to join as workers
 }
 
 resource "aws_eks_access_policy_association" "karpenter_node" {

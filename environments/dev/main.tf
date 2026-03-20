@@ -18,8 +18,8 @@ module "eks" {
   addons = {
     coredns    = { most_recent = true }
     kube-proxy = { most_recent = true }
-    vpc-cni    = { most_recent = true
-                  before_compute = true}
+    vpc-cni = { most_recent = true
+    before_compute = true }
   }
 
   eks_managed_node_groups = {
@@ -33,7 +33,7 @@ module "eks" {
       labels = {
         Environment = "dev"
         Capacity    = "spot"
-        test = "ci-verified2"
+        test        = "ci-verified2"
       }
     }
   }

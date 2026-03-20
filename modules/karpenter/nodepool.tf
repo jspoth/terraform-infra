@@ -49,7 +49,7 @@ resource "kubernetes_manifest" "spot_pool" {
         }
         spec = {
           nodeClassRef = {
-           name = kubernetes_manifest.default_nodeclass.manifest.metadata.name
+            name = kubernetes_manifest.default_nodeclass.manifest.metadata.name
           }
           # Adding a Taint ensures only pods that 'tolerate' spot can land here
           taints = [
