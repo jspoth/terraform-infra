@@ -55,7 +55,7 @@ jobs:
           fi
 
       - name: Alert on Drift
-        if: steps.plan.outputs.exitcode == '2'
+        if: steps.plan.outputs.exitcode == 2
         run: |
           echo "### ⚠️ DRIFT DETECTED in ${{ matrix.environment }}!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
