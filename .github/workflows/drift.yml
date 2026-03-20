@@ -46,7 +46,7 @@ jobs:
           EXIT_CODE=$?
 
           set -e
-
+          echo "Debug: Terraform returned $EXIT_CODE"
           echo "exitcode=$EXIT_CODE" >> $GITHUB_OUTPUT
 
           if [ "$EXIT_CODE" -eq 1 ]; then
