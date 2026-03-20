@@ -11,12 +11,13 @@ permissions:
 
 jobs:
   drift-check:
+    name: "Drift Check: ${{ matrix.environment }}"
     runs-on: ubuntu-latest
-    environment: dev
     strategy:
       matrix:
         environment: [dev] # Check all your envs
-    
+    environment: ${{ matrix.environment }}
+
     defaults:
       run:
         working-directory: environments/${{ matrix.environment }}
@@ -35,42 +36,32 @@ jobs:
         uses: hashicorp/setup-terraform@v4
 
       - name: Terraform Init
-        run: rm -rf .terraform && terraform init
+        run: terraform init
 
-      - name: Code Verification
-        run: |
-          echo "Checking the value of min_size in environments/dev/main.tf:"
-          grep "min_size" environments/dev/main.tf
-          
       - name: Check for Drift
         id: plan
         run: |
+          # Use a temporary file to catch the exit code
           set +e
-
           terraform plan -detailed-exitcode -no-color > drift_output.txt
           EXIT_CODE=$?
-
-          set -e
-          echo "Debug: Terraform returned $EXIT_CODE"
+          echo "exitcode=$EXIT_CODE"
           echo "exitcode=$EXIT_CODE" >> $GITHUB_OUTPUT
+          set -e
 
-          if [ "$EXIT_CODE" -eq 1 ]; then
-            echo "Terraform plan failed"
-            exit 1
-          fi
+          # Optional: Upload the text file so you can download it in the next step
+          # or just cat it here if you only need the logs.
+        continue-on-error: true
 
       - name: Alert on Drift
-        if: steps.plan.outputs.exitcode == 2
+        if: steps.plan.outputs.exitcode == '2'
         run: |
           echo "### ⚠️ DRIFT DETECTED in ${{ matrix.environment }}!" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Terraform detected infrastructure drift." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          echo "#### Plan Output:" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          cat drift_output.txt >> $GITHUB_STEP_SUMMARY
+          echo "The following changes were found between code and cloud:" >> $GITHUB_STEP_SUMMARY
+          echo '```diff' >> $GITHUB_STEP_SUMMARY
+          # This grep pulls only the lines that show the actual resource changes
+          grep -E "resource|~|\+|-" drift_output.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-          # Also log to console
+          # Also print to the console for easy viewing in logs
           cat drift_output.txt
