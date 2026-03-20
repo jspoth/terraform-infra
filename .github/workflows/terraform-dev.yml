@@ -27,13 +27,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::831714862044:role/github-actions-terraform # Replace with your Role ARN
           aws-region: us-east-2
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
 
       - name: Terraform Plan
         run: terraform init && terraform plan -lock-timeout=3m
