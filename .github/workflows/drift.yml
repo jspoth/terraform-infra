@@ -40,19 +40,32 @@ jobs:
       - name: Check for Drift
         id: plan
         run: |
-          terraform plan -detailed-exitcode -no-color > drift_output.txt || export EXIT_CODE=$?
+          set +e
+
+          terraform plan -detailed-exitcode -no-color > drift_output.txt
+          EXIT_CODE=$?
+
+          set -e
+
           echo "exitcode=$EXIT_CODE" >> $GITHUB_OUTPUT
-        continue-on-error: true
+
+          if [ "$EXIT_CODE" -eq 1 ]; then
+            echo "Terraform plan failed"
+            exit 1
+          fi
 
       - name: Alert on Drift
         if: steps.plan.outputs.exitcode == '2'
         run: |
           echo "### ⚠️ DRIFT DETECTED in ${{ matrix.environment }}!" >> $GITHUB_STEP_SUMMARY
-          echo "The following changes were found between code and cloud:" >> $GITHUB_STEP_SUMMARY
-          echo '```diff' >> $GITHUB_STEP_SUMMARY
-          # This grep pulls only the lines that show the actual resource changes
-          grep -E "resource|~|\+|-" drift_output.txt >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Terraform detected infrastructure drift." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "#### Plan Output:" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat drift_output.txt >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-          # Also print to the console for easy viewing in logs
+          # Also log to console
           cat drift_output.txt
