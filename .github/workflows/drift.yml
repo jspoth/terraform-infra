@@ -1,0 +1,48 @@
+name: "Terraform Drift Detection"
+
+on:
+  schedule:
+    - cron: '0 17 * * *' # Runs daily at 10 AM PST
+  workflow_dispatch:      # Allows you to run it manually for testing
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  drift-check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [dev, prod] # Check all your envs
+    
+    defaults:
+      run:
+        working-directory: environments/${{ matrix.environment }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-west-2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Check for Drift
+        id: plan
+        # -detailed-exitcode returns 2 if there is a difference (drift)
+        run: terraform plan -detailed-exitcode
+        continue-on-error: true
+
+      - name: Alert on Drift
+        if: steps.plan.outputs.exitcode == 2
+        run: |
+          echo "DRIFT DETECTED in ${{ matrix.environment }}!"
