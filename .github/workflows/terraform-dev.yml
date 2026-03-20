@@ -1,4 +1,4 @@
-name: Terraform
+name: "Terraform Plan"
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false # Important: Let the current one finish so it unlocks properly
@@ -19,6 +19,7 @@ jobs:
   deploy:
     needs: validate # Only runs if linting/validation passes
     runs-on: ubuntu-latest
+    environment: dev
     defaults:
       run:
         working-directory: ./environments/dev
@@ -29,7 +30,7 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ secrets.AWS_ARN }} # Replace with your Role ARN
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-2
 
       - name: Setup Terraform
