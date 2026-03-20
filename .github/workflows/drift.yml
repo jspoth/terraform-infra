@@ -40,19 +40,8 @@ jobs:
 
       - name: Check for Drift
         id: plan
-        run: |
-          # Use a temporary file to catch the exit code
-          set +e
-          terraform plan -detailed-exitcode -no-color
-          terraform plan -detailed-exitcode -no-color > drift_output.txt
-          EXIT_CODE=$?
-          echo "exitcode=$EXIT_CODE"
-          echo "exitcode=$EXIT_CODE" >> $GITHUB_OUTPUT
-          set -e
-
-          # Optional: Upload the text file so you can download it in the next step
-          # or just cat it here if you only need the logs.
-        
+        continue-on-error: true 
+        run: terraform plan -detailed-exitcode -no-color
 
       - name: Alert on Drift
         if: steps.plan.outputs.exitcode == '2'
