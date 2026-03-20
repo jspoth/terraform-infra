@@ -26,8 +26,8 @@ variable "eks_managed_node_groups" {
 }
 
 variable "enable_cluster_creator_admin_permissions" {
-  type        = bool
-  default     = true
+  type    = bool
+  default = true
 }
 
 variable "addons" {

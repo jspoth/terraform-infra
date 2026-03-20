@@ -3,9 +3,9 @@ module "eks" {
   version = "~> 21.0"
 
   # Use the variables from your root main.tf
-  name              = var.cluster_name
+  name               = var.cluster_name
   kubernetes_version = var.cluster_version
-  vpc_id          = var.vpc_id
+  vpc_id             = var.vpc_id
   subnet_ids         = var.subnet_ids
 
 

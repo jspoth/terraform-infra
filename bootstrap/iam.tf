@@ -40,8 +40,8 @@ resource "aws_iam_role_policy" "github_actions_iam_bridge" {
         Effect = "Allow"
         Action = [
           "iam:GetRole",
-          "iam:ListRolePolicies",      # <--- ADD THIS
-          "iam:GetRolePolicy",         # <--- ADD THIS
+          "iam:ListRolePolicies",         # <--- ADD THIS
+          "iam:GetRolePolicy",            # <--- ADD THIS
           "iam:ListAttachedRolePolicies", # <--- ADD THIS (Highly recommended)
           "iam:CreateRole",
           "iam:DeleteRole",
