@@ -52,7 +52,7 @@ jobs:
 
           # Optional: Upload the text file so you can download it in the next step
           # or just cat it here if you only need the logs.
-        continue-on-error: true
+        
 
       - name: Alert on Drift
         if: steps.plan.outputs.exitcode == '2'
