@@ -35,7 +35,7 @@ jobs:
         uses: hashicorp/setup-terraform@v4
 
       - name: Terraform Init
-        run: terraform init
+        run: rm -rf .terraform && terraform init
 
       - name: Check for Drift
         id: plan
