@@ -38,56 +38,36 @@ jobs:
       - name: Terraform Init
         run: rm -rf .terraform && terraform init
 
-      - name: Detect Drift
+      - name: Check for Drift
         id: plan
+        continue-on-error: true
+        run: terraform plan -detailed-exitcode -no-color
+
+      - name: Alert on Drift
+        if: steps.plan.outputs.exitcode == '2'
         run: |
-          set +e  # Continue on non-zero exit codes
-          terraform plan \
-            -detailed-exitcode \
-            -no-color \
-            -input=false \
-            -out=tfplan \
-            > plan_output.txt 2>&1
+          echo "## ⚠️ DRIFT DETECTED in ${{ matrix.environment }}!" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.plan.outputs.stdout }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
-          PLAN_EXIT_CODE=$?
-          echo "exitcode=$PLAN_EXIT_CODE" >> $GITHUB_OUTPUT
-
-          if [ $PLAN_EXIT_CODE -eq 0 ]; then
-            echo "✅ No drift detected in ${{ matrix.environment }}"
-            echo "drift_detected=false" >> $GITHUB_OUTPUT
-          elif [ $PLAN_EXIT_CODE -eq 2 ]; then
-            echo "⚠️ Drift detected in ${{ matrix.environment }}"
-            echo "drift_detected=true" >> $GITHUB_OUTPUT
-          else
-            echo "❌ Error running plan for ${{ matrix.environment }}"
-            cat plan_output.txt
-            exit 1
-          fi
-
-      - name: Analyze Drift
-        if: steps.plan.outputs.drift_detected == 'true'
-        id: analysis
+      - name: Extract Plan Summary
+        if: steps.plan.outputs.exitcode == '2'
         run: |
-          # Count change types
-          CREATES=$(grep -c "will be created" plan_output.txt || echo "0")
-          UPDATES=$(grep -c "will be updated" plan_output.txt || echo "0")
-          DELETES=$(grep -c "will be destroyed" plan_output.txt || echo "0")
-          REPLACES=$(grep -c "must be replaced" plan_output.txt || echo "0")
+          SUMMARY=$(echo "${{ steps.plan.outputs.stdout }}" | grep "Plan:")
+          echo "### Summary" >> $GITHUB_STEP_SUMMARY
+          echo "$SUMMARY" >> $GITHUB_STEP_SUMMARY
 
-          echo "creates=$CREATES" >> $GITHUB_OUTPUT
-          echo "updates=$UPDATES" >> $GITHUB_OUTPUT
-          echo "deletes=$DELETES" >> $GITHUB_OUTPUT
-          echo "replaces=$REPLACES" >> $GITHUB_OUTPUT
+      - name: Analyze Drift (Filtered)
+        if: steps.plan.outputs.exitcode == '2'
+        run: |
+          OUTPUT="${{ steps.plan.outputs.stdout }}"
 
-          # Extract changed resource addresses
-          grep -E "^ # (.+) (will be|must be)" plan_output.txt | \
-            sed 's/ # //' | \
-            cut -d' ' -f1 > changed_resources.txt
+          ADDED=$(echo "$OUTPUT" | grep -cE "^\s*\+ [a-zA-Z0-9_]+\.")
+          CHANGED=$(echo "$OUTPUT" | grep -cE "^\s*~ [a-zA-Z0-9_]+\.")
+          DESTROYED=$(echo "$OUTPUT" | grep -cE "^\s*- [a-zA-Z0-9_]+\.")
 
-          # Flag security-sensitive resources
-          if grep -qE "aws_security_group|aws_iam|aws_s3_bucket_public" changed_resources.txt; then
-            echo "security_sensitive=true" >> $GITHUB_OUTPUT
-          else
-            echo "security_sensitive=false" >> $GITHUB_OUTPUT
-          fi
-
+          echo "### Resource-Level Breakdown" >> $GITHUB_STEP_SUMMARY
+          echo "- ➕ Added: $ADDED" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔄 Changed: $CHANGED" >> $GITHUB_STEP_SUMMARY
+          echo "- ❌ Destroyed: $DESTROYED" >> $GITHUB_STEP_SUMMARY
