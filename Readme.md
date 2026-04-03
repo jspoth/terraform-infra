@@ -2,8 +2,8 @@
 
 The repository follows a **Decoupled Root Module** pattern to balance reusability with environment stability.
 
-* **`/modules`**: Source of truth for infrastructure components (VPC, EKS, IAM). Versioned and reusable across environments.
-* **`/environments`**: Contains live state definitions for `dev` and `prod`. Each environment maintains its own S3 backend and DynamoDB state lock.
+* **`/modules`**: Source of truth for infrastructure components (VPC, EKS, DynamoDB, Karpenter). Versioned and reusable across environments.
+* **`/environments`**: Contains live state definitions per environment. Each environment maintains its own S3 backend and DynamoDB state lock.
 * **`.github/workflows`**: The "Control Plane" of the repo. Uses **Reusable Workflows** to standardize CI/CD across all environments.
 
 ---
@@ -12,12 +12,19 @@ The repository follows a **Decoupled Root Module** pattern to balance reusabilit
 
 ```text
 terraform-infra/
-├── modules/              # Reusable infrastructure modules (VPC, EKS, IAM, etc.)
+├── modules/
+│   ├── vpc/              # VPC, subnets, NAT gateway, route tables
+│   ├── eks/              # EKS cluster, managed node groups, addons
+│   ├── dynamodb/         # DynamoDB table with global replica + stream
+│   └── karpenter/        # Karpenter node autoscaler (optional)
 ├── environments/
-│   ├── dev/              # Development environment configs
-│   └── prod/             # Production environment configs
-├── .github/workflows/    # Reusable CI/CD workflows
-└── README.md
+│   └── dev/              # Development environment configs
+├── bootstrap/            # One-time IAM/OIDC + S3 backend setup
+└── .github/workflows/
+    ├── lint.yml          # Reusable: fmt, validate, tflint
+    ├── infracost.yml     # Reusable: cost estimation on PRs
+    ├── terraform-dev.yml # PR + push pipeline for dev
+    └── drift.yml         # Daily drift detection
 ```
 
 ---
@@ -32,13 +39,21 @@ terraform-infra/
 
 ### 🔍 Active Drift Detection
 
-* Detects out-of-band changes in AWS.
-* Uses raw Terraform exit codes for accurate drift alerts.
+* Runs daily via cron against live AWS state.
+* Uses `terraform plan -detailed-exitcode` to detect out-of-band changes.
+* Surfaces results in the GitHub Actions job summary.
+
+### 💰 Infracost Cost Estimation
+
+* Runs automatically on every PR.
+* Generates a cost breakdown from the Terraform plan and posts it as a PR comment.
+* Comment is updated in-place on each new push — no spam.
 
 ### 🛠️ Standardized CI/CD (Reusable Workflows)
 
-* Centralized workflows for Linting, Validation, and Costing.
-* DRY architecture ensures changes propagate automatically across environments.
+* **`lint.yml`**: Auto-formats HCL with `terraform fmt`, runs `terraform validate` and `tflint`. Commits formatting fixes back to the branch automatically.
+* **`infracost.yml`**: Reusable cost estimation — parameterized by environment so it can be called from any environment pipeline.
+* DRY architecture ensures changes to shared workflows propagate automatically.
 
 ---
 
@@ -47,7 +62,7 @@ terraform-infra/
 * Terraform CLI ≥ 1.7.0
 * AWS CLI configured (optional for local testing)
 * GitHub account for OIDC authentication
-* Optional: Infracost CLI for local cost estimation
+* `INFRACOST_API_KEY` secret set in GitHub repo settings (free at [infracost.io](https://www.infracost.io))
 
 ---
 
@@ -84,21 +99,21 @@ terraform apply tfplan.binary
 ### CI/CD Workflow
 
 1. Open a Pull Request to `main`.
-2. Check **GitHub Actions Summary** for drift alerts.
-3. Merge to trigger automated deployment.
+2. The pipeline runs automatically:
+   - **Lint** — formats code, validates config, runs tflint
+   - **Plan** — authenticates via OIDC and runs `terraform plan`
+   - **Infracost** — posts a cost estimate comment on the PR
+3. Merge to `main` triggers the same pipeline without the cost comment.
+4. Drift detection runs daily and flags any changes made outside Terraform.
 
 ---
 
 ## ⚙️ Optional Add-ons
 
-* **Karpenter**: Dynamic EKS node provisioning
-* **CloudWatch Logging**: Centralized cluster logs
-* **S3 Logging Buckets**: Store app logs and artifacts
-* **Infracost**: Provides immediate visibility into financial impact of changes.
-* **Security Scanning (Checkov)**: Add a "Security" job to your reusable workflow to catch misconfigured Security Groups or unencrypted EKS secrets before they reach AWS.
+* **Karpenter**: Dynamic EKS node provisioning (module present, disabled in dev)
+* **Security Scanning (Checkov)**: Add a "Security" job to the reusable lint workflow to catch misconfigured security groups or unencrypted secrets before they reach AWS.
 
 ---
-
 
 ## 🖼 Architecture Diagram (ASCII)
 
@@ -110,7 +125,8 @@ terraform apply tfplan.binary
                  ▼
         ┌────────────────┐
         │ GitHub Actions │
-        │  CI/CD Control │
+        │  lint / plan   │
+        │  infracost     │
         └─────┬──────────┘
               │
      ┌────────┴─────────┐
@@ -118,11 +134,11 @@ terraform apply tfplan.binary
      │ (Modules + Env)   │
      └────────┬─────────┘
               │
-   ┌──────────┴───────────┐
-   │      AWS Infra        │
-   │ VPC / Subnets / EKS   │
-   │ IAM / Logging / Add-ons│
-   └───────────────────────┘
+   ┌──────────┴────────────┐
+   │       AWS Infra        │
+   │  VPC / Subnets / EKS   │
+   │  DynamoDB / IAM        │
+   └────────────────────────┘
 ```
 
 ---
@@ -132,4 +148,3 @@ terraform apply tfplan.binary
 * Terraform docs: [https://developer.hashicorp.com/terraform](https://developer.hashicorp.com/terraform)
 * AWS Terraform provider: [https://registry.terraform.io/providers/hashicorp/aws/latest/docs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 * Infracost docs: [https://www.infracost.io/docs/](https://www.infracost.io/docs/)
-
