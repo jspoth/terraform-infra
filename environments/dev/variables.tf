@@ -16,12 +16,12 @@ variable "addons" {
   default = {}
 }
 
- variable "public_subnet_tags" {
-    type    = map(string)
-    default = {}
-  }
+variable "public_subnet_tags" {
+  type    = map(string)
+  default = {}
+}
 
-  variable "private_subnet_tags" {
-    type    = map(string)
-    default = {}
-  }
+variable "private_subnet_tags" {
+  type    = map(string)
+  default = {}
+}
