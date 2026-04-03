@@ -15,3 +15,13 @@ variable "addons" {
   type    = map(any)
   default = {}
 }
+
+variable "public_subnet_tags" {
+  type    = map(string)
+  default = {}
+}
+
+variable "private_subnet_tags" {
+  type    = map(string)
+  default = {}
+}
