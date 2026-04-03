@@ -1,0 +1,62 @@
+name: "Reusable Infracost"
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        required: true
+        type: string
+      environment:
+        required: true
+        type: string
+    secrets:
+      AWS_ROLE_ARN:
+        required: true
+      INFRACOST_API_KEY:
+        required: true
+
+jobs:
+  infracost:
+    name: "Infracost Cost Estimate"
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false # Required so infracost can parse the plan JSON
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Generate Terraform Plan
+        run: terraform plan -lock-timeout=3m -out=tfplan.binary
+
+      - name: Convert Plan to JSON
+        run: terraform show -json tfplan.binary > plan.json
+
+      - name: Setup Infracost
+        uses: infracost/actions/setup@v3
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Run Infracost
+        run: infracost breakdown --path=plan.json --format=json --out-file=/tmp/infracost.json
+
+      - name: Post Infracost Comment
+        uses: infracost/actions/comment@v1
+        with:
+          path: /tmp/infracost.json
+          behavior: update # Updates existing comment rather than adding a new one
