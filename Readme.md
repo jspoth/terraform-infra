@@ -29,6 +29,41 @@ terraform-infra/
 
 ---
 
+## 🗄️ DynamoDB Module
+
+The `modules/dynamodb` module provisions a production-grade DynamoDB table with:
+
+* **On-demand billing** (`PAY_PER_REQUEST`) — no capacity planning required
+* **DynamoDB Streams** (`NEW_AND_OLD_IMAGES`) — captures item-level changes for event-driven consumers or auditing
+* **Global replica** — cross-region replica provisioned automatically (configured per environment, e.g. `us-west-2`)
+* **Deletion protection** — `prevent_destroy = true` guards against accidental `terraform destroy`
+
+---
+
+## 🔧 Bootstrap
+
+The `/bootstrap` directory contains a **one-time setup** that must be run before any environment can deploy via CI/CD. It provisions the foundational AWS resources that the rest of the repo depends on:
+
+| Resource | Purpose |
+|---|---|
+| `aws_iam_openid_connect_provider` | Registers GitHub Actions as a trusted OIDC identity provider in AWS |
+| `aws_iam_role` (`github-actions-terraform`) | Role assumed by GitHub Actions workflows via OIDC — no static keys required |
+| IAM policies | Grants the role permissions to manage infrastructure and read/write Terraform state |
+
+### Running Bootstrap
+
+Bootstrap is run **once** with local AWS credentials (not via CI/CD):
+
+```bash
+cd bootstrap
+terraform init
+terraform apply -var="github_org=<your-org>" -var="github_repo=<your-repo>"
+```
+
+The role ARN output from this step should be set as a GitHub Actions secret (`AWS_ROLE_ARN`) used by the environment workflows.
+
+---
+
 ## 🚀 Key Engineering Features
 
 ### 🔐 Zero-Trust OIDC Authentication
@@ -105,6 +140,63 @@ terraform apply tfplan.binary
    - **Infracost** — posts a cost estimate comment on the PR
 3. Merge to `main` triggers the same pipeline without the cost comment.
 4. Drift detection runs daily and flags any changes made outside Terraform.
+
+---
+
+## 🚢 Application Deployment
+
+This infrastructure is designed to host containerized Go applications on EKS. A reference deployment ([go-app](https://github.com/jspoth/go-app)) is used to validate the stack end-to-end.
+
+### IAM Role for Service Accounts (IRSA)
+
+To allow pods to access AWS resources without static credentials, an IAM role (`go-app-irsa-primary`) is provisioned with a trust policy scoped to the `go-app-sa` Kubernetes service account in the `default` namespace.
+
+The role grants the application least-privilege access to DynamoDB:
+
+* `GetItem`, `PutItem`, `DeleteItem`, `BatchGetItem`, `BatchWriteItem` — standard CRUD
+* `Scan`, `Query` — read operations
+* `UpdateTable` — for schema/TTL changes
+
+The Kubernetes `ServiceAccount` is annotated with the role ARN:
+
+```yaml
+eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/go-app-irsa-primary
+```
+
+AWS injects short-lived credentials into the pod automatically — no IAM keys stored in the cluster.
+
+### Deploying the Application
+
+The go-app follows a two-stage deployment process, each handled by a separate GitHub Actions workflow in the [go-app](https://github.com/jspoth/go-app) repository.
+
+#### Stage 1 — Build & Push (triggered on merge to `main`)
+
+1. Authenticates to ECR via OIDC (no static AWS keys)
+2. Builds the Docker image using GitHub Actions cache (`--cache-from=type=gha`) to speed up builds
+3. Tags the image with the git SHA for traceability
+4. Pushes to ECR
+
+#### Stage 2 — Deploy to EKS (triggered manually via `workflow_dispatch`)
+
+The deploy workflow is intentionally manual — the git SHA of the image to deploy is passed as an input, giving full control over which version is rolled out.
+
+1. Authenticates to AWS via OIDC and updates kubeconfig for `dev-eks-cluster`
+2. Substitutes placeholders in the Kubernetes manifests (ECR registry, image tag, DynamoDB table, account ID)
+3. Runs `kubectl apply -f k8s/`
+4. Confirms a healthy rollout with `kubectl rollout status deployment/go-app`
+
+#### End-to-End Flow
+
+```text
+PR opened
+    └── CI: go fmt + golangci-lint
+
+Merge to main
+    └── deploy.yml: Build image → tag with git SHA → push to ECR
+
+Manual trigger (workflow_dispatch)
+    └── k8s-deploy.yml: Pull image by SHA → apply manifests → rollout status
+```
 
 ---
 
