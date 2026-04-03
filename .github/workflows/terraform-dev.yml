@@ -9,7 +9,7 @@ on:
 
 permissions:
   id-token: write # Required for OIDC
-  contents: read  # Required for checkout
+  contents: write # Required for checkout
   pull-requests: write # To post plan comments
 
 jobs:
@@ -39,3 +39,14 @@ jobs:
 
       - name: Terraform Plan
         run: terraform init && terraform plan -lock-timeout=3m
+
+  infracost:
+    needs: validate
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/infracost.yml
+    with:
+      working-directory: ./environments/dev
+      environment: dev
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
