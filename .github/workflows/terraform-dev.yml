@@ -9,7 +9,7 @@ on:
 
 permissions:
   id-token: write # Required for OIDC
-  contents: read  # Required for checkout
+  contents: write # Required for checkout and pushing fmt fixes
   pull-requests: write # To post plan comments
 
 jobs:
@@ -39,3 +39,50 @@ jobs:
 
       - name: Terraform Plan
         run: terraform init && terraform plan -lock-timeout=3m
+
+  infracost:
+    name: "Infracost Cost Estimate"
+    needs: validate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    environment: dev
+    defaults:
+      run:
+        working-directory: ./environments/dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false # Required so infracost can parse the plan JSON
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Generate Terraform Plan
+        run: terraform plan -lock-timeout=3m -out=tfplan.binary
+
+      - name: Convert Plan to JSON
+        run: terraform show -json tfplan.binary > plan.json
+
+      - name: Setup Infracost
+        uses: infracost/actions/setup@v3
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Run Infracost
+        run: infracost breakdown --path=plan.json --format=json --out-file=/tmp/infracost.json
+
+      - name: Post Infracost Comment
+        uses: infracost/actions/comment@v1
+        with:
+          path: /tmp/infracost.json
+          behavior: update # Updates existing comment rather than adding a new one
