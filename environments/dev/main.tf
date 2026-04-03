@@ -6,6 +6,8 @@ module "vpc" {
   public_subnets  = var.public_subnets
   private_subnets = var.private_subnets
   azs             = var.azs
+  public_subnet_tags  = var.public_subnet_tags
+  private_subnet_tags = var.private_subnet_tags
 }
 
 module "eks" {
@@ -38,6 +40,16 @@ module "eks" {
     }
   }
 }
+
+module "dynamodb" {
+    source = "../../modules/dynamodb"
+
+    table_name   = "app_events"
+    replica_region = "us-west-2"
+    tags = {
+      env = "dev"
+    }
+  }
 
 # module "karpenter" {
 #   source       = "../../modules/karpenter"

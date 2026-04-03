@@ -16,7 +16,8 @@ jobs:
   validate:
     uses: ./.github/workflows/lint.yml
 
-  deploy:
+  Plan:
+    name: "Run TF plan"
     needs: validate # Only runs if linting/validation passes
     runs-on: ubuntu-latest
     environment: dev
