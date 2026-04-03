@@ -16,4 +16,5 @@ output "cluster_name" {
 output "cluster_certificate_authority_data" {
   description = "Base64 encoded certificate data"
   value       = module.eks.cluster_certificate_authority_data
+  sensitive   = true
 }

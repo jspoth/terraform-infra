@@ -1,7 +1,14 @@
 variable "vpc_name" {
   type = string
 }
-variable "cidr_block" {}
+variable "cidr_block" {
+  type        = string
+  description = "The CIDR block for the VPC"
+  validation {
+    condition     = can(cidrhost(var.cidr_block, 0))
+    error_message = "Must be a valid CIDR block (e.g. 10.0.0.0/16)."
+  }
+}
 variable "public_subnets" {
   type = list(string)
 }
