@@ -8,8 +8,8 @@ variable "replica_region" {
   description = "Region where dynamodb replica will run"
 }
 
- variable "tags" {
-    type        = map(string)
-    description = "Tags to apply to the table"
-    default     = {}
-  }
+variable "tags" {
+  type        = map(string)
+  description = "Tags to apply to the table"
+  default     = {}
+}
