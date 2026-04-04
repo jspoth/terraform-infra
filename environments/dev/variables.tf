@@ -25,3 +25,8 @@ variable "private_subnet_tags" {
   type    = map(string)
   default = {}
 }
+
+variable "region" {
+  type        = string
+  description = "AWS region"
+}

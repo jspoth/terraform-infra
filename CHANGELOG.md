@@ -1,3 +1,9 @@
+2026-04-04: AWS Load Balancer Controller Module
+- Added AWS Load Balancer Controller Terraform module
+- Added IRSA role and IAM policy for LBC
+- Added Helm release resource for LBC deployment
+- Made region configurable via variable (DR-ready)
+
 2026-04-03: Documentation & Cleanup
 - Added and iteratively improved README
 - General cleanup and formatting

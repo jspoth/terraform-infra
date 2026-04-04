@@ -41,6 +41,16 @@ module "eks" {
   }
 }
 
+module "aws_load_balancer_controller" {
+  source = "../../modules/aws-load-balancer-controller"
+
+  cluster_name      = module.eks.cluster_name
+  vpc_id            = module.vpc.vpc_id
+  region            = var.region
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_provider     = module.eks.oidc_provider
+}
+
 module "dynamodb" {
   source = "../../modules/dynamodb"
 
