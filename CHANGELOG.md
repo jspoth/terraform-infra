@@ -1,0 +1,35 @@
+2026-04-03: Documentation & Cleanup
+- Added and iteratively improved README
+- General cleanup and formatting
+
+2026-04-02: Cost Estimation
+- Integrated Infracost into CI pipeline for pull request cost visibility
+- Added Infracost configuration and GitHub Actions workflow step
+
+2026-04-02: DynamoDB Module
+- Added DynamoDB Terraform module
+- Added supporting HCL variable and output files
+
+2026-03-20: Drift Detection
+- Added scheduled drift detection GitHub Actions workflow
+- Configured workflow to extract, analyze, and alert on infrastructure drift
+- Improved drift output handling and secrets management
+
+2026-03-20: Code Quality & Linting
+- Added Terraform linter (`tflint`) to CI workflow
+- Added auto-formatting checks
+- Fixed various lint and syntax issues
+
+2026-03-05: CI/CD Pipeline
+- Added GitHub Actions workflow for Terraform plan/apply
+- Set up remote state bootstrapping (S3 + DynamoDB locking)
+- Configured IAM roles and permissions for CI
+- Added `tfvars` support for CI environment targeting
+- Scoped to `us-east-2` region
+
+2026-02-26: Infrastructure Foundations
+- Initial Terraform project setup with modular structure
+- Added EKS cluster module with working configuration
+- Added VPC module with environment-based networking
+- Added Karpenter module for node autoscaling
+- Configured providers and namespace resources
