@@ -18,7 +18,7 @@ module "eks" {
   subnet_ids   = module.vpc.private_subnets
 
   addons = {
-    coredns    = { most_recent = true }
+    coredns    = { most_recent = true, before_compute = true }
     kube-proxy = { most_recent = true }
     vpc-cni = { most_recent = true
     before_compute = true }
@@ -58,6 +58,22 @@ module "dynamodb" {
   replica_region = "us-west-2"
   tags = {
     env = "dev"
+  }
+}
+
+resource "aws_eks_access_entry" "github_actions" {
+  cluster_name  = module.eks.cluster_name
+  principal_arn = "arn:aws:iam::831714862044:role/github-actions-terraform"
+  type          = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "github_actions" {
+  cluster_name  = module.eks.cluster_name
+  principal_arn = "arn:aws:iam::831714862044:role/github-actions-terraform"
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
   }
 }
 
