@@ -51,16 +51,6 @@ module "aws_load_balancer_controller" {
   oidc_provider     = module.eks.oidc_provider
 }
 
-module "dynamodb" {
-  source = "../../modules/dynamodb"
-
-  table_name     = "app_events"
-  replica_region = "us-west-2"
-  tags = {
-    env = "dev"
-  }
-}
-
 resource "aws_eks_access_entry" "github_actions" {
   cluster_name  = module.eks.cluster_name
   principal_arn = "arn:aws:iam::831714862044:role/github-actions-terraform"

@@ -3,9 +3,6 @@ name: "Reusable Infracost"
 on:
   workflow_call:
     inputs:
-      working-directory:
-        required: true
-        type: string
       environment:
         required: true
         type: string
@@ -20,9 +17,6 @@ jobs:
     name: "Infracost Cost Estimate"
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
-    defaults:
-      run:
-        working-directory: ${{ inputs.working-directory }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -38,25 +32,37 @@ jobs:
         with:
           terraform_wrapper: false # Required so infracost can parse the plan JSON
 
-      - name: Terraform Init
-        run: terraform init
-
-      - name: Generate Terraform Plan
-        run: terraform plan -lock-timeout=3m -out=tfplan.binary
-
-      - name: Convert Plan to JSON
-        run: terraform show -json tfplan.binary > plan.json
-
       - name: Setup Infracost
         uses: infracost/actions/setup@v3
         with:
           api-key: ${{ secrets.INFRACOST_API_KEY }}
 
-      - name: Run Infracost
-        run: infracost breakdown --path=plan.json --format=json --out-file=/tmp/infracost.json
+      - name: Generate plan - general
+        working-directory: ./environments/dev/general
+        run: |
+          terraform init
+          terraform plan -lock-timeout=3m -out=tfplan.binary
+          terraform show -json tfplan.binary > plan.json
+          infracost breakdown --path=plan.json --format=json --out-file=/tmp/infracost-general.json
+
+      - name: Generate plan - datastores
+        working-directory: ./environments/dev/datastores
+        run: |
+          terraform init
+          terraform plan -lock-timeout=3m -out=tfplan.binary
+          terraform show -json tfplan.binary > plan.json
+          infracost breakdown --path=plan.json --format=json --out-file=/tmp/infracost-datastores.json
+
+      - name: Combine cost estimates
+        run: |
+          infracost output \
+            --path /tmp/infracost-general.json \
+            --path /tmp/infracost-datastores.json \
+            --format json \
+            --out-file /tmp/infracost-combined.json
 
       - name: Post Infracost Comment
         uses: infracost/actions/comment@v1
         with:
-          path: /tmp/infracost.json
+          path: /tmp/infracost-combined.json
           behavior: update # Updates existing comment rather than adding a new one

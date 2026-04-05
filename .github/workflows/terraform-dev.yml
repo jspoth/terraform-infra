@@ -23,7 +23,7 @@ jobs:
     environment: dev
     defaults:
       run:
-        working-directory: ./environments/dev
+        working-directory: ./environments/dev/general
     steps:
       - name: checkout
         uses: actions/checkout@v5
@@ -45,7 +45,6 @@ jobs:
     if: github.event_name == 'pull_request'
     uses: ./.github/workflows/infracost.yml
     with:
-      working-directory: ./environments/dev
       environment: dev
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
