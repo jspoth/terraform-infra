@@ -1,5 +1,5 @@
 module "vpc" {
-  source = "../../modules/vpc"
+  source = "../../../../modules/vpc"
 
   vpc_name            = var.vpc_name
   cidr_block          = var.cidr_block
@@ -11,7 +11,7 @@ module "vpc" {
 }
 
 module "eks" {
-  source = "../../modules/eks"
+  source = "../../../../modules/eks"
 
   cluster_name = "dev-eks-cluster"
   vpc_id       = module.vpc.vpc_id
@@ -42,7 +42,7 @@ module "eks" {
 }
 
 module "aws_load_balancer_controller" {
-  source = "../../modules/aws-load-balancer-controller"
+  source = "../../../../modules/aws-load-balancer-controller"
 
   cluster_name      = module.eks.cluster_name
   vpc_id            = module.vpc.vpc_id
