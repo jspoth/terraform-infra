@@ -1,3 +1,11 @@
+2026-04-05: Bug Fixes & EKS Access
+- Added EKS access entry and policy association for github-actions-terraform role to fix kubectl auth in CI
+- Added elasticloadbalancing:DescribeListenerAttributes to LBC IAM policy (missing permission blocking ALB provisioning)
+- Added before_compute = true to CoreDNS addon to fix LBC webhook ordering issue on fresh cluster apply
+- Bumped Helm provider to ~> 3.1 and updated provider syntax
+- Added DynamoDB range_key and timestamp attribute
+- Added dev-dynamo environment workspace to isolate DynamoDB from EKS destroy lifecycle
+
 2026-04-04: AWS Load Balancer Controller Module
 - Added AWS Load Balancer Controller Terraform module
 - Added IRSA role and IAM policy for LBC
