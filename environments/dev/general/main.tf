@@ -51,6 +51,45 @@ module "aws_load_balancer_controller" {
   oidc_provider     = module.eks.oidc_provider
 }
 
+data "aws_dynamodb_table" "app_events" {
+  name = "app_events"
+}
+
+resource "aws_iam_policy" "go_app_dynamodb" {
+  name = "go-app-dynamodb-policy"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:BatchGetItem",
+          "dynamodb:BatchWriteItem",
+          "dynamodb:Scan",
+          "dynamodb:Query",
+          "dynamodb:UpdateTable"
+        ]
+        Resource = data.aws_dynamodb_table.app_events.arn
+      }
+    ]
+  })
+}
+
+module "irsa" {
+  source = "../../../modules/irsa"
+
+  role_name         = "go-app-irsa-primary"
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_provider     = module.eks.oidc_provider
+  namespace         = "default"
+  service_account   = "go-app-sa"
+  policy_arns       = [aws_iam_policy.go_app_dynamodb.arn]
+}
+
 resource "aws_eks_access_entry" "github_actions" {
   cluster_name  = module.eks.cluster_name
   principal_arn = "arn:aws:iam::831714862044:role/github-actions-terraform"
