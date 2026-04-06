@@ -18,12 +18,15 @@ terraform-infra/
 │   ├── dynamodb/         # DynamoDB table with global replica + stream
 │   └── karpenter/        # Karpenter node autoscaler (optional)
 ├── environments/
-│   └── dev/              # Development environment configs
+│   └── dev/
+│       ├── general/      # VPC, EKS, LBC — reuses existing state
+│       └── datastores/   # DynamoDB — isolated state
 ├── bootstrap/            # One-time IAM/OIDC + S3 backend setup
 └── .github/workflows/
     ├── lint.yml          # Reusable: fmt, validate, tflint
     ├── infracost.yml     # Reusable: cost estimation on PRs
-    ├── terraform-dev.yml # PR + push pipeline for dev
+    ├── terraform-dev.yml        # PR + push pipeline for dev/general
+    ├── terraform-dev-dynamo.yml # PR + push pipeline for dev/datastores
     └── drift.yml         # Daily drift detection
 ```
 
@@ -81,8 +84,8 @@ The role ARN output from this step should be set as a GitHub Actions secret (`AW
 ### 💰 Infracost Cost Estimation
 
 * Runs automatically on every PR.
-* Generates a cost breakdown from the Terraform plan and posts it as a PR comment.
-* Comment is updated in-place on each new push — no spam.
+* Generates cost breakdowns for both `general` and `datastores` environments and combines them into a single composite estimate.
+* Posts the combined total as a PR comment, updated in-place on each new push — no spam.
 
 ### 🛠️ Standardized CI/CD (Reusable Workflows)
 
@@ -108,7 +111,9 @@ The role ARN output from this step should be set as a GitHub Actions secret (`AW
 1. Navigate to the environment:
 
 ```bash
-cd environments/dev
+cd environments/dev/general   # VPC, EKS, LBC
+# or
+cd environments/dev/datastores  # DynamoDB
 ```
 
 2. Initialize Terraform:

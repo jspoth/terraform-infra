@@ -1,3 +1,20 @@
+2026-04-05: Environment Refactor - Split dev into general & datastores
+- Split flat environments/dev/ into environments/dev/general/ (VPC, EKS, LBC) and environments/dev/datastores/ (DynamoDB)
+- Reused existing dev/terraform.tfstate for general to avoid state migration
+- Added new isolated state file for datastores (dev/datastores/terraform.tfstate)
+- Added variables.tf, outputs.tf, and terraform.tfvars to datastores environment
+- Updated CI workflows: terraform-dev.yml targets general, terraform-dev-dynamo.yml targets datastores
+- Updated Infracost workflow to run on both environments and post a combined cost estimate
+- Fixed module source paths after directory restructure
+
+2026-04-05: Bug Fixes & EKS Access
+- Added EKS access entry and policy association for github-actions-terraform role to fix kubectl auth in CI
+- Added elasticloadbalancing:DescribeListenerAttributes to LBC IAM policy (missing permission blocking ALB provisioning)
+- Added before_compute = true to CoreDNS addon to fix LBC webhook ordering issue on fresh cluster apply
+- Bumped Helm provider to ~> 3.1 and updated provider syntax
+- Added DynamoDB range_key and timestamp attribute
+- Added dev-dynamo environment workspace to isolate DynamoDB from EKS destroy lifecycle
+
 2026-04-04: AWS Load Balancer Controller Module
 - Added AWS Load Balancer Controller Terraform module
 - Added IRSA role and IAM policy for LBC

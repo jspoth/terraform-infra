@@ -1,0 +1,117 @@
+module "vpc" {
+  source = "../../../modules/vpc"
+
+  vpc_name            = var.vpc_name
+  cidr_block          = var.cidr_block
+  public_subnets      = var.public_subnets
+  private_subnets     = var.private_subnets
+  azs                 = var.azs
+  public_subnet_tags  = var.public_subnet_tags
+  private_subnet_tags = var.private_subnet_tags
+}
+
+module "eks" {
+  source = "../../../modules/eks"
+
+  cluster_name = "dev-eks-cluster"
+  vpc_id       = module.vpc.vpc_id
+  subnet_ids   = module.vpc.private_subnets
+
+  addons = {
+    coredns    = { most_recent = true, before_compute = true }
+    kube-proxy = { most_recent = true }
+    vpc-cni = { most_recent = true
+    before_compute = true }
+  }
+
+  eks_managed_node_groups = {
+    dev_nodes = {
+      capacity_type  = "SPOT"
+      instance_types = ["t3.small"]
+      min_size       = 1
+      max_size       = 2
+      desired_size   = 1
+
+      labels = {
+        Environment = "dev"
+        Capacity    = "spot"
+        test        = "ci-verified2"
+      }
+    }
+  }
+}
+
+module "aws_load_balancer_controller" {
+  source = "../../../modules/aws-load-balancer-controller"
+
+  cluster_name      = module.eks.cluster_name
+  vpc_id            = module.vpc.vpc_id
+  region            = var.region
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_provider     = module.eks.oidc_provider
+}
+
+data "aws_dynamodb_table" "app_events" {
+  name = "app_events"
+}
+
+resource "aws_iam_policy" "go_app_dynamodb" {
+  name = "go-app-dynamodb-policy"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:BatchGetItem",
+          "dynamodb:BatchWriteItem",
+          "dynamodb:Scan",
+          "dynamodb:Query",
+          "dynamodb:UpdateTable"
+        ]
+        Resource = data.aws_dynamodb_table.app_events.arn
+      }
+    ]
+  })
+}
+
+module "irsa" {
+  source = "../../../modules/irsa"
+
+  role_name         = "go-app-irsa-primary"
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_provider     = module.eks.oidc_provider
+  namespace         = "default"
+  service_account   = "go-app-sa"
+  policy_arns       = [aws_iam_policy.go_app_dynamodb.arn]
+}
+
+resource "aws_eks_access_entry" "github_actions" {
+  cluster_name  = module.eks.cluster_name
+  principal_arn = "arn:aws:iam::831714862044:role/github-actions-terraform"
+  type          = "STANDARD"
+}
+
+resource "aws_eks_access_policy_association" "github_actions" {
+  cluster_name  = module.eks.cluster_name
+  principal_arn = "arn:aws:iam::831714862044:role/github-actions-terraform"
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+}
+
+# module "karpenter" {
+#   source       = "../../modules/karpenter"
+#   cluster_name = module.eks.cluster_name
+#   subnet_ids   = module.vpc.private_subnets
+# }
+
+# output "eks_cluster_endpoint" {
+#   value = module.eks.cluster_endpoint
+# }
