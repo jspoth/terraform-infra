@@ -109,31 +109,28 @@ The role ARN output from this step should be set as a GitHub Actions secret (`AW
 
 ### Local Development
 
-1. Navigate to the environment:
+A `Makefile` at the repo root wraps the common Terraform commands. Use `ENV` for the environment and `RESOURCE` for the stack (`general`, `datastores`, `addons`).
 
 ```bash
-cd environments/dev/general   # VPC, EKS, LBC
-# or
-cd environments/dev/datastores  # DynamoDB
+make init    RESOURCE=general       # terraform init
+make plan    RESOURCE=general       # terraform plan
+make apply   RESOURCE=general       # terraform apply
+make destroy RESOURCE=general       # terraform destroy
+
+make apply   RESOURCE=datastores    # DynamoDB stack
+make apply   RESOURCE=addons        # Karpenter — two-pass apply handled automatically
+
+# target a different environment
+make apply ENV=prod RESOURCE=general
 ```
 
-2. Initialize Terraform:
+To deploy EKS and Karpenter in one command:
 
 ```bash
-terraform init
+make deploy                         # applies general then addons in order
 ```
 
-3. Preview changes:
-
-```bash
-terraform plan -out=tfplan.binary
-```
-
-4. Apply changes:
-
-```bash
-terraform apply tfplan.binary
-```
+`ENV` defaults to `dev`, `RESOURCE` defaults to `general`.
 
 ---
 
