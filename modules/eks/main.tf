@@ -23,6 +23,11 @@ module "eks" {
 
   # Adds your current local user as a cluster admin automatically
   enable_cluster_creator_admin_permissions = true
+
+  # Required for Karpenter security group discovery
+  node_security_group_tags = {
+    "karpenter.sh/discovery" = var.cluster_name
+  }
 }
 
 

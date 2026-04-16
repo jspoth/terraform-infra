@@ -17,11 +17,6 @@ module "vpc" {
     Name = var.vpc_name
   }
 
-  public_subnet_tags = {
-    "kubernetes.io/role/elb" = "1"
-  }
-
-  private_subnet_tags = {
-    "kubernetes.io/role/internal-elb" = "1"
-  }
+  public_subnet_tags  = var.public_subnet_tags
+  private_subnet_tags = var.private_subnet_tags
 }

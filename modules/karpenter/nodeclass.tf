@@ -1,11 +1,12 @@
 resource "kubernetes_manifest" "default_nodeclass" {
+  depends_on = [helm_release.karpenter]
+
   manifest = {
-    apiVersion = "karpenter.k8s.aws/v1beta1"
+    apiVersion = "karpenter.k8s.aws/v1"
     kind       = "EC2NodeClass"
     metadata   = { name = "default" }
     spec = {
-      amiFamily = "AL2"
-      role      = module.karpenter.node_iam_role_name
+      role = module.karpenter.node_iam_role_name
 
       # Karpenter needs to know which AMIs are allowed
       amiSelectorTerms = [

@@ -20,7 +20,8 @@ terraform-infra/
 ├── environments/
 │   └── dev/
 │       ├── general/      # VPC, EKS, LBC — reuses existing state
-│       └── datastores/   # DynamoDB — isolated state
+│       ├── datastores/   # DynamoDB — isolated state
+│       └── addons/       # Karpenter — deployed after EKS is running
 ├── bootstrap/            # One-time IAM/OIDC + S3 backend setup
 └── .github/workflows/
     ├── lint.yml          # Reusable: fmt, validate, tflint
