@@ -20,5 +20,6 @@ public_subnet_tags = {
 
 private_subnet_tags = {
   "kubernetes.io/role/internal-elb" = "1"
+  "karpenter.sh/discovery"          = "dev-eks-cluster"
 }
 

@@ -18,10 +18,10 @@ module "eks" {
   subnet_ids   = module.vpc.private_subnets
 
   addons = {
-    coredns    = { most_recent = true, before_compute = true }
-    kube-proxy = { most_recent = true }
-    vpc-cni = { most_recent = true
-    before_compute = true }
+    coredns                = { most_recent = true, before_compute = true }
+    kube-proxy             = { most_recent = true }
+    vpc-cni                = { most_recent = true, before_compute = true }
+    eks-pod-identity-agent = { most_recent = true }
   }
 
   eks_managed_node_groups = {
@@ -106,12 +106,6 @@ resource "aws_eks_access_policy_association" "github_actions" {
   }
 }
 
-# module "karpenter" {
-#   source       = "../../modules/karpenter"
-#   cluster_name = module.eks.cluster_name
-#   subnet_ids   = module.vpc.private_subnets
-# }
-
-# output "eks_cluster_endpoint" {
-#   value = module.eks.cluster_endpoint
-# }
+output "eks_cluster_endpoint" {
+  value = module.eks.cluster_endpoint
+}
