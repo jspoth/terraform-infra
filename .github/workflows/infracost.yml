@@ -13,8 +13,12 @@ on:
         required: true
 
 jobs:
+  validate:
+    uses: ./.github/workflows/lint.yml
+
   infracost:
     name: "Infracost Cost Estimate"
+    needs: validate
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:

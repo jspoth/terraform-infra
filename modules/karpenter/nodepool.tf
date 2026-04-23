@@ -32,6 +32,16 @@ resource "kubernetes_manifest" "general_pool" {
               key      = "kubernetes.io/arch"
               operator = "In"
               values   = ["amd64"]
+            },
+            {
+              key      = "karpenter.k8s.aws/instance-category"
+              operator = "In"
+              values   = ["t"]
+            },
+            {
+              key      = "karpenter.k8s.aws/instance-size"
+              operator = "In"
+              values   = ["small", "medium", "large"]
             }
           ]
         }

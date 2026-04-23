@@ -2,8 +2,8 @@
 
 The repository follows a **Decoupled Root Module** pattern to balance reusability with environment stability.
 
-* **`/modules`**: Source of truth for infrastructure components (VPC, EKS, DynamoDB, Karpenter). Versioned and reusable across environments.
-* **`/environments`**: Contains live state definitions per environment. Each environment maintains its own S3 backend and DynamoDB state lock.
+* **`/modules`**: Source of truth for infrastructure components. Versioned and reusable across environments.
+* **`/environments`**: Contains live state definitions per environment. Each layer has its own S3 backend and DynamoDB state lock — isolated blast radius.
 * **`.github/workflows`**: The "Control Plane" of the repo. Uses **Reusable Workflows** to standardize CI/CD across all environments.
 
 ---
@@ -16,12 +16,16 @@ terraform-infra/
 │   ├── vpc/              # VPC, subnets, NAT gateway, route tables
 │   ├── eks/              # EKS cluster, managed node groups, addons
 │   ├── dynamodb/         # DynamoDB table with global replica + stream
-│   └── karpenter/        # Karpenter node autoscaler (optional)
+│   ├── sqs/              # SQS queues + DLQs via for_each
+│   ├── irsa/             # IAM Role for Service Accounts (reusable)
+│   └── karpenter/        # Karpenter node autoscaler
 ├── environments/
 │   └── dev/
-│       ├── general/      # VPC, EKS, LBC — reuses existing state
-│       ├── datastores/   # DynamoDB — isolated state
-│       └── addons/       # Karpenter — deployed after EKS is running
+│       ├── general/      # VPC, EKS, LBC, EKS access entries
+│       ├── datastores/   # DynamoDB — persistent storage, prevent_destroy
+│       ├── messaging/    # SQS queues and DLQs
+│       ├── addons/       # Karpenter, ESO, Reloader
+│       └── permissions/  # IRSA roles + all app IAM policies
 ├── bootstrap/            # One-time IAM/OIDC + S3 backend setup
 └── .github/workflows/
     ├── lint.yml          # Reusable: fmt, validate, tflint
@@ -30,6 +34,56 @@ terraform-infra/
     ├── terraform-dev-dynamo.yml # PR + push pipeline for dev/datastores
     └── drift.yml         # Daily drift detection
 ```
+
+---
+
+## 🗄️ Environment Layers
+
+Each layer has its own S3 state file and can be planned, applied, and destroyed independently. The dependency order matters — see the `deploy` Makefile target.
+
+| Layer | Contains | Depends on |
+|---|---|---|
+| `general` | VPC, EKS, LBC, access entries | nothing |
+| `permissions` | IRSA roles, IAM policies | `general` (EKS OIDC) |
+| `addons` | Karpenter, ESO, Reloader | `general` + `permissions` (ESO IRSA role) |
+| `messaging` | SQS queues, DLQs, SSM params | nothing |
+| `datastores` | DynamoDB, SSM params | nothing — managed separately, `prevent_destroy` |
+
+`datastores` is intentionally excluded from the `deploy` target. The DynamoDB table was created once and has `prevent_destroy = true` — it's never part of a routine deploy.
+
+---
+
+## 📨 SQS Module
+
+The `modules/sqs` module provisions queue + DLQ pairs via `for_each`. Adding a new queue requires one line in `terraform.tfvars` — no module code changes, no IAM policy changes.
+
+```hcl
+# messaging/terraform.tfvars
+queues = {
+  app-events    = {}                          # all defaults
+  another-queue = { visibility_timeout = 60 }
+}
+```
+
+The IRSA policy in `permissions` uses a wildcard ARN (`dev-*`) to cover all queues matching the prefix — so it never needs updating as queues are added.
+
+---
+
+## 🔑 Config Management — SSM + ESO + Reloader
+
+App configuration (queue URLs, table names) is stored in SSM Parameter Store and injected into pods via External Secrets Operator. No config values are passed through GitHub Actions secrets or baked into deployment manifests.
+
+```text
+Terraform → SSM Parameter Store
+              ↓ (sync every 1m)
+         ESO → Kubernetes Secret (go-app-config)
+                      ↓
+              Pod (envFrom: secretRef)
+                      ↑
+         Reloader watches secret → rolling restart on change
+```
+
+ESO has its own IRSA role (`eso-irsa-dev`) with `ssm:GetParameter` on `/dev/app/*`. The app's IRSA role (`go-app-irsa-primary`) has access to DynamoDB, SQS, and SSM under the same path.
 
 ---
 
@@ -109,7 +163,7 @@ The role ARN output from this step should be set as a GitHub Actions secret (`AW
 
 ### Local Development
 
-A `Makefile` at the repo root wraps the common Terraform commands. Use `ENV` for the environment and `RESOURCE` for the stack (`general`, `datastores`, `addons`).
+A `Makefile` at the repo root wraps the common Terraform commands. Use `ENV` for the environment and `RESOURCE` for the layer.
 
 ```bash
 make init    RESOURCE=general       # terraform init
@@ -117,17 +171,19 @@ make plan    RESOURCE=general       # terraform plan
 make apply   RESOURCE=general       # terraform apply
 make destroy RESOURCE=general       # terraform destroy
 
-make apply   RESOURCE=datastores    # DynamoDB stack
-make apply   RESOURCE=addons        # Karpenter — two-pass apply handled automatically
+make apply   RESOURCE=permissions   # IRSA + app IAM policies
+make apply   RESOURCE=messaging     # SQS queues
+make apply   RESOURCE=addons        # Karpenter + ESO + Reloader — two-pass apply handled automatically
+make apply   RESOURCE=datastores    # DynamoDB — run once, managed separately
 
 # target a different environment
 make apply ENV=prod RESOURCE=general
 ```
 
-To deploy EKS and Karpenter in one command:
+To deploy all layers in dependency order:
 
 ```bash
-make deploy                         # applies general then addons in order
+make deploy   # general → permissions → addons → messaging
 ```
 
 `ENV` defaults to `dev`, `RESOURCE` defaults to `general`.
@@ -152,25 +208,25 @@ This infrastructure is designed to host containerized Go applications on EKS. A 
 
 ### IAM Role for Service Accounts (IRSA)
 
-To allow pods to access AWS resources without static credentials, an IAM role (`go-app-irsa-primary`) is provisioned with a trust policy scoped to the `go-app-sa` Kubernetes service account in the `default` namespace.
+All pod-level AWS access uses IRSA — no static credentials stored in the cluster. Two roles are provisioned in `permissions/`:
 
-The role grants the application least-privilege access to DynamoDB:
+* **`go-app-irsa-primary`** — scoped to the `go-app-sa` service account. Grants DynamoDB CRUD, SQS send/receive/delete, and SSM read on `/dev/app/*`.
+* **`eso-irsa-dev`** — scoped to the `external-secrets` service account. Grants SSM read on `/dev/app/*` so ESO can sync parameters into Kubernetes Secrets.
 
-* `GetItem`, `PutItem`, `DeleteItem`, `BatchGetItem`, `BatchWriteItem` — standard CRUD
-* `Scan`, `Query` — read operations
-* `UpdateTable` — for schema/TTL changes
+### Event-Driven Application Flow
 
-The Kubernetes `ServiceAccount` is annotated with the role ARN:
-
-```yaml
-eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/go-app-irsa-primary
+```text
+Go app (SqsQueueWriter, 1m tick)
+    └── publishes JSON event → SQS (dev-app-events)
+              └── Go app (StartConsumer, long-poll)
+                      └── reads message → writes to DynamoDB → deletes message
 ```
 
-AWS injects short-lived credentials into the pod automatically — no IAM keys stored in the cluster.
+Config values are injected at runtime via ESO — the deployment manifest uses `envFrom: secretRef` and contains no hardcoded config. Reloader triggers a rolling restart when ESO updates the secret.
 
 ### Deploying the Application
 
-The go-app follows a two-stage deployment process, each handled by a separate GitHub Actions workflow in the [go-app](https://github.com/jspoth/go-app) repository.
+The go-app follows a two-stage deployment process in the [go-app](https://github.com/jspoth/go-app) repository.
 
 #### Stage 1 — Build & Push (triggered on merge to `main`)
 
@@ -181,32 +237,18 @@ The go-app follows a two-stage deployment process, each handled by a separate Gi
 
 #### Stage 2 — Deploy to EKS (triggered manually via `workflow_dispatch`)
 
-The deploy workflow is intentionally manual — the git SHA of the image to deploy is passed as an input, giving full control over which version is rolled out.
-
 1. Authenticates to AWS via OIDC and updates kubeconfig for `dev-eks-cluster`
-2. Substitutes placeholders in the Kubernetes manifests (ECR registry, image tag, DynamoDB table, account ID)
-3. Runs `kubectl apply -f k8s/`
+2. Substitutes image placeholders in the deployment manifest (ECR registry, image tag)
+3. Applies all manifests including `ClusterSecretStore` and `ExternalSecret` for ESO
 4. Confirms a healthy rollout with `kubectl rollout status deployment/go-app`
-
-#### End-to-End Flow
-
-```text
-PR opened
-    └── CI: go fmt + golangci-lint
-
-Merge to main
-    └── deploy.yml: Build image → tag with git SHA → push to ECR
-
-Manual trigger (workflow_dispatch)
-    └── k8s-deploy.yml: Pull image by SHA → apply manifests → rollout status
-```
 
 ---
 
-## ⚙️ Optional Add-ons
+## ⚙️ Add-ons
 
-* **Karpenter**: Dynamic EKS node provisioning (module present, disabled in dev)
-* **Security Scanning (Checkov)**: Add a "Security" job to the reusable lint workflow to catch misconfigured security groups or unencrypted secrets before they reach AWS.
+* **Karpenter**: Dynamic node provisioning. NodePool constrained to `t` family, `small`/`medium`/`large` to avoid undersized nodes.
+* **External Secrets Operator (ESO)**: Syncs SSM Parameter Store values into Kubernetes Secrets on a 1-minute interval.
+* **Reloader**: Watches Kubernetes Secrets and triggers rolling pod restarts when they change.
 
 ---
 
@@ -229,11 +271,18 @@ Manual trigger (workflow_dispatch)
      │ (Modules + Env)   │
      └────────┬─────────┘
               │
-   ┌──────────┴────────────┐
-   │       AWS Infra        │
-   │  VPC / Subnets / EKS   │
-   │  DynamoDB / IAM        │
-   └────────────────────────┘
+   ┌──────────┴──────────────────┐
+   │         AWS Infra            │
+   │  VPC / EKS / Karpenter       │
+   │  SQS / DynamoDB              │
+   │  SSM / IAM / IRSA            │
+   └──────────┬──────────────────┘
+              │
+   ┌──────────┴──────────────────┐
+   │      Go App (EKS Pod)        │
+   │  producer → SQS → consumer   │
+   │  config via ESO + Reloader   │
+   └─────────────────────────────┘
 ```
 
 ---
@@ -242,4 +291,5 @@ Manual trigger (workflow_dispatch)
 
 * Terraform docs: [https://developer.hashicorp.com/terraform](https://developer.hashicorp.com/terraform)
 * AWS Terraform provider: [https://registry.terraform.io/providers/hashicorp/aws/latest/docs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
+* External Secrets Operator: [https://external-secrets.io](https://external-secrets.io)
 * Infracost docs: [https://www.infracost.io/docs/](https://www.infracost.io/docs/)
