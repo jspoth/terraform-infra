@@ -24,7 +24,12 @@ apply:
 destroy:
 	terraform -chdir=$(DIR) destroy
 
-# Deploy EKS then Karpenter in order
+# Deploy all layers in dependency order:
+#   general (VPC + EKS) → permissions (IRSA + ESO role) → addons (Karpenter + ESO + Reloader) → messaging (SQS)
+#   datastores (DynamoDB) excluded — prevent_destroy, managed separately
+#   permissions before addons because ESO Helm chart needs the ESO IRSA role to exist
 deploy:
 	$(MAKE) apply RESOURCE=general
+	$(MAKE) apply RESOURCE=permissions
 	$(MAKE) apply RESOURCE=addons
+	$(MAKE) apply RESOURCE=messaging
