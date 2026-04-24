@@ -12,3 +12,8 @@ output "public_subnets" {
   description = "List of IDs of public subnets"
   value       = module.vpc.public_subnets
 }
+
+output "sqs_vpc_endpoint_id" {
+  description = "ID of the SQS VPC endpoint"
+  value       = aws_vpc_endpoint.sqs.id
+}
