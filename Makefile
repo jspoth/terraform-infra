@@ -28,8 +28,14 @@ destroy:
 #   general (VPC + EKS) → permissions (IRSA + ESO role) → addons (Karpenter + ESO + Reloader) → messaging (SQS)
 #   datastores (DynamoDB) excluded — prevent_destroy, managed separately
 #   permissions before addons because ESO Helm chart needs the ESO IRSA role to exist
+#   dns excluded — must run after kubectl apply (ALB must exist before dns layer can resolve it)
 deploy:
 	$(MAKE) apply RESOURCE=general
 	$(MAKE) apply RESOURCE=permissions
 	$(MAKE) apply RESOURCE=addons
 	$(MAKE) apply RESOURCE=messaging
+
+# Sync Route 53 to the current ALB provisioned by the LBC.
+# Run after kubectl apply — ALB must exist before this layer resolves.
+dns:
+	$(MAKE) apply RESOURCE=dns
