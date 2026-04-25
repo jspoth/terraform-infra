@@ -26,6 +26,7 @@ module "eks" {
 
   eks_managed_node_groups = {
     dev_nodes = {
+      ami_type       = "AL2023_x86_64_STANDARD"
       capacity_type  = "SPOT"
       instance_types = ["t3.small"]
       min_size       = 1

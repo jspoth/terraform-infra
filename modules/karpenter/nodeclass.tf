@@ -10,7 +10,7 @@ resource "kubernetes_manifest" "default_nodeclass" {
 
       # Karpenter needs to know which AMIs are allowed
       amiSelectorTerms = [
-        { alias = "al2@latest" }
+        { alias = "al2023@latest" }
       ]
 
       subnetSelectorTerms = [
