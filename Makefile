@@ -50,3 +50,8 @@ deploy:
 # Run after kubectl apply — ALB must exist before this layer resolves.
 dns:
 	$(MAKE) apply RESOURCE=dns
+
+# Sync Route 53 DR failover record to the DR ALB.
+# Run after DR kubectl apply — DR ALB must exist before this layer resolves.
+dns-dr:
+	$(MAKE) apply ENV=DR RESOURCE=dns

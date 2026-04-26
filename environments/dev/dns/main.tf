@@ -10,12 +10,31 @@ data "aws_lb" "go_app" {
   }
 }
 
+resource "aws_route53_health_check" "primary" {
+  fqdn              = var.healthcheck_domain
+  port              = 443
+  type              = "HTTPS"
+  resource_path     = "/health/live"
+  failure_threshold = 3
+  request_interval  = 30
+
+  tags = {
+    Name = "primary-alb-health-check"
+  }
+}
+
 resource "aws_route53_record" "this" {
   for_each = toset(var.dns_records)
 
-  zone_id = data.aws_route53_zone.this.zone_id
-  name    = each.value
-  type    = "A"
+  zone_id         = data.aws_route53_zone.this.zone_id
+  name            = each.value
+  type            = "A"
+  set_identifier  = "primary"
+  health_check_id = aws_route53_health_check.primary.id
+
+  failover_routing_policy {
+    type = "PRIMARY"
+  }
 
   alias {
     name                   = data.aws_lb.go_app.dns_name

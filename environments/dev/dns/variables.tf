@@ -30,3 +30,9 @@ variable "dns_records" {
   description = "List of DNS names to point at the ALB (e.g. apex as empty string or full FQDNs)"
   default     = ["app.jspoth.com"]
 }
+
+variable "healthcheck_domain" {
+  type        = string
+  description = "Domain for Route 53 health check"
+  default     = "app.jspoth.com"
+}

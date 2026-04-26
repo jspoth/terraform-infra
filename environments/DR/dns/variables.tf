@@ -21,6 +21,12 @@ variable "ingress_name" {
 
 variable "dns_records" {
   type        = list(string)
-  description = "List of DNS names to point at the ALB (e.g. apex as empty string or full FQDNs)"
+  description = "List of DNS names to point at the DR ALB"
   default     = ["app.jspoth.com"]
+}
+
+variable "healthcheck_domain" {
+  type        = string
+  description = "Domain for DR health check"
+  default     = "app.jspoth.com"
 }
