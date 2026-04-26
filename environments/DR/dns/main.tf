@@ -10,7 +10,7 @@ data "aws_lb" "go_app" {
   }
 }
 
-resource "aws_route53_health_check" "primary" {
+resource "aws_route53_health_check" "dr" {
   fqdn              = var.healthcheck_domain
   port              = 443
   type              = "HTTPS"
@@ -19,21 +19,20 @@ resource "aws_route53_health_check" "primary" {
   request_interval  = 30
 
   tags = {
-    Name = "primary-alb-health-check"
+    Name = "dr-alb-health-check"
   }
 }
 
 resource "aws_route53_record" "this" {
   for_each = toset(var.dns_records)
 
-  zone_id         = data.aws_route53_zone.this.zone_id
-  name            = each.value
-  type            = "A"
-  set_identifier  = "primary"
-  health_check_id = aws_route53_health_check.primary.id
+  zone_id        = data.aws_route53_zone.this.zone_id
+  name           = each.value
+  type           = "A"
+  set_identifier = "secondary"
 
   failover_routing_policy {
-    type = "PRIMARY"
+    type = "SECONDARY"
   }
 
   alias {
@@ -41,14 +40,6 @@ resource "aws_route53_record" "this" {
     zone_id                = data.aws_lb.go_app.zone_id
     evaluate_target_health = true
   }
-}
-
-resource "aws_route53_record" "github_pages" {
-  zone_id = data.aws_route53_zone.this.zone_id
-  name    = var.domain
-  type    = "A"
-  ttl     = 300
-  records = var.github_pages_ips
 }
 
 output "alb_dns_name" {

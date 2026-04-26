@@ -1,6 +1,6 @@
 variable "region" {
   type    = string
-  default = "us-east-2"
+  default = "us-west-2"
 }
 
 variable "domain" {
@@ -11,7 +11,7 @@ variable "domain" {
 
 variable "cluster_name" {
   type    = string
-  default = "dev-eks-cluster"
+  default = "dr-eks-cluster"
 }
 
 variable "ingress_name" {
@@ -19,20 +19,14 @@ variable "ingress_name" {
   default = "go-app-ingress"
 }
 
-variable "github_pages_ips" {
-  type        = list(string)
-  description = "GitHub Pages IPs for the apex domain"
-  default     = ["185.199.108.153", "185.199.109.153", "185.199.110.153", "185.199.111.153"]
-}
-
 variable "dns_records" {
   type        = list(string)
-  description = "List of DNS names to point at the ALB (e.g. apex as empty string or full FQDNs)"
+  description = "List of DNS names to point at the DR ALB"
   default     = ["app.jspoth.com"]
 }
 
 variable "healthcheck_domain" {
   type        = string
-  description = "Domain for Route 53 health check"
+  description = "Domain for DR health check"
   default     = "app.jspoth.com"
 }
