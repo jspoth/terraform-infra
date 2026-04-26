@@ -1,20 +1,3 @@
-data "aws_caller_identity" "current" {}
-
-resource "aws_ecr_replication_configuration" "this" {
-  replication_configuration {
-    rule {
-      destination {
-        region      = "us-west-2"
-        registry_id = data.aws_caller_identity.current.account_id
-      }
-      repository_filter {
-        filter      = "go-app"
-        filter_type = "PREFIX_MATCH"
-      }
-    }
-  }
-}
-
 module "vpc" {
   source = "../../../modules/vpc"
 
@@ -30,7 +13,7 @@ module "vpc" {
 module "eks" {
   source = "../../../modules/eks"
 
-  cluster_name = "dev-eks-cluster"
+  cluster_name = "dr-eks-cluster"
   vpc_id       = module.vpc.vpc_id
   subnet_ids   = module.vpc.private_subnets
 
@@ -42,18 +25,17 @@ module "eks" {
   }
 
   eks_managed_node_groups = {
-    dev_nodes = {
+    dr_nodes = {
       ami_type       = "AL2023_x86_64_STANDARD"
       capacity_type  = "SPOT"
       instance_types = ["t3.small"]
-      min_size       = 1
+      min_size       = 0
       max_size       = 2
-      desired_size   = 1
+      desired_size   = 0
 
       labels = {
-        Environment = "dev"
+        Environment = "dr"
         Capacity    = "spot"
-        test        = "ci-verified2"
       }
     }
   }
@@ -67,6 +49,7 @@ module "aws_load_balancer_controller" {
   region            = var.region
   oidc_provider_arn = module.eks.oidc_provider_arn
   oidc_provider     = module.eks.oidc_provider
+  resource_suffix   = "-dr"
 }
 
 resource "aws_eks_access_entry" "github_actions" {

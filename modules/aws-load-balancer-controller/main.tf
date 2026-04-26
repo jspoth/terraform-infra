@@ -1,5 +1,5 @@
 resource "aws_iam_policy" "lbc" {
-  name        = "AWSLoadBalancerControllerIAMPolicy"
+  name        = "AWSLoadBalancerControllerIAMPolicy${var.resource_suffix}"
   description = "IAM policy for the AWS Load Balancer Controller"
   policy      = file("${path.module}/files/iam_policy.json")
 }
@@ -7,7 +7,7 @@ resource "aws_iam_policy" "lbc" {
 module "irsa" {
   source = "../irsa"
 
-  role_name         = "aws-load-balancer-controller"
+  role_name         = "aws-load-balancer-controller${var.resource_suffix}"
   oidc_provider_arn = var.oidc_provider_arn
   oidc_provider     = var.oidc_provider
   namespace         = "kube-system"
