@@ -1,3 +1,7 @@
+Full documentation — design decisions, debugging lessons, DR test results: **[jspoth.com](https://jspoth.com)**
+
+---
+
 ## 🏗️ Architectural Overview
 
 The repository follows a **Decoupled Root Module** pattern to balance reusability with environment stability.
@@ -20,12 +24,20 @@ terraform-infra/
 │   ├── irsa/             # IAM Role for Service Accounts (reusable)
 │   └── karpenter/        # Karpenter node autoscaler
 ├── environments/
-│   └── dev/
-│       ├── general/      # VPC, EKS, LBC, EKS access entries
-│       ├── datastores/   # DynamoDB — persistent storage, prevent_destroy
-│       ├── messaging/    # SQS queues and DLQs
+│   ├── dev/              # Primary region (us-east-2)
+│   │   ├── general/      # VPC, EKS, LBC, EKS access entries
+│   │   ├── datastores/   # DynamoDB — persistent storage, prevent_destroy
+│   │   ├── messaging/    # SQS queues and DLQs
+│   │   ├── addons/       # Karpenter, ESO, Reloader
+│   │   ├── dns/          # Route 53 PRIMARY failover record + health check
+│   │   └── permissions/  # IRSA roles + all app IAM policies
+│   └── DR/               # DR region (us-west-2) — pilot light
+│       ├── general/      # VPC, EKS (min=0), LBC
+│       ├── datastores/   # DynamoDB Global Table replica
+│       ├── messaging/    # SQS queues + DLQs
 │       ├── addons/       # Karpenter, ESO, Reloader
-│       └── permissions/  # IRSA roles + all app IAM policies
+│       ├── dns/          # ACM cert + SECONDARY failover record + health check
+│       └── permissions/  # IRSA roles scoped to DR cluster OIDC
 ├── bootstrap/            # One-time IAM/OIDC + S3 backend setup
 └── .github/workflows/
     ├── lint.yml          # Reusable: fmt, validate, tflint
@@ -48,8 +60,11 @@ Each layer has its own S3 state file and can be planned, applied, and destroyed 
 | `addons` | Karpenter, ESO, Reloader | `general` + `permissions` (ESO IRSA role) |
 | `messaging` | SQS queues, DLQs, SSM params | nothing |
 | `datastores` | DynamoDB, SSM params | nothing — managed separately, `prevent_destroy` |
+| `dns` | Route 53 records, health checks, ACM cert (DR) | `general` (ALB DNS name) |
 
 `datastores` is intentionally excluded from the `deploy` target. The DynamoDB table was created once and has `prevent_destroy = true` — it's never part of a routine deploy.
+
+State is split across two S3 buckets — `jsp-test-tfstate` (us-east-2) and `jsp-test-tfstate-dr` (us-west-2) — so DR state survives a primary region outage.
 
 ---
 
@@ -178,12 +193,17 @@ make apply   RESOURCE=datastores    # DynamoDB — run once, managed separately
 
 # target a different environment
 make apply ENV=prod RESOURCE=general
+
+# DR environment
+make deploy-dr   # general → permissions → addons → messaging (us-west-2)
+make dns-dr      # ACM cert + SECONDARY Route 53 failover record
 ```
 
 To deploy all layers in dependency order:
 
 ```bash
-make deploy   # general → permissions → addons → messaging
+make deploy      # dev: general → permissions → addons → messaging
+make deploy-dr   # DR:  general → permissions → addons → messaging
 ```
 
 `ENV` defaults to `dev`, `RESOURCE` defaults to `general`.
@@ -252,6 +272,34 @@ The go-app follows a two-stage deployment process in the [go-app](https://github
 
 ---
 
+## 🌎 Multi-Region Disaster Recovery
+
+A pilot light DR environment runs in **us-west-2** with Route 53 automatic failover. Traffic shifts regions when the primary health check fails — no manual intervention required.
+
+| Property | Value |
+|---|---|
+| DR strategy | Pilot light (EKS scales from 0 on cutover) |
+| RTO (measured) | ~83 seconds |
+| RPO | ~60 seconds (DynamoDB ticker interval) |
+| Failover trigger | Route 53 health check — 3 consecutive failures at 30s intervals |
+| Data replication | DynamoDB Global Tables — automatic cross-region sync |
+| Messaging | SQS is regional — DR queue starts empty on cutover |
+| State isolation | Separate S3 bucket in us-west-2 (`jsp-test-tfstate-dr`) |
+
+### How failover works
+
+```text
+Route 53 polls app.jspoth.com:443/health/live every 30s
+  → 3 failures (~61s) → health check turns Unhealthy
+  → Route 53 stops routing to PRIMARY record (us-east-2 ALB)
+  → traffic automatically shifts to SECONDARY record (us-west-2 ALB)
+  → DR Cutover GHA workflow scales EKS node group + deployment to handle load
+```
+
+The DR environment mirrors the dev layer structure exactly. Terragrunt would eliminate the copy-paste at scale; at two environments the duplication is an acceptable tradeoff. Full DR documentation at [jspoth.com/dr](https://jspoth.com/dr.html).
+
+---
+
 ## 🖼 Architecture Diagram (ASCII)
 
 ```text
@@ -271,24 +319,29 @@ The go-app follows a two-stage deployment process in the [go-app](https://github
      │ (Modules + Env)   │
      └────────┬─────────┘
               │
-   ┌──────────┴──────────────────┐
-   │         AWS Infra            │
-   │  VPC / EKS / Karpenter       │
-   │  SQS / DynamoDB              │
-   │  SSM / IAM / IRSA            │
-   └──────────┬──────────────────┘
-              │
-   ┌──────────┴──────────────────┐
-   │      Go App (EKS Pod)        │
-   │  producer → SQS → consumer   │
-   │  config via ESO + Reloader   │
-   └─────────────────────────────┘
+   ┌──────────┴────────────────────────────────────────┐
+   │                    Route 53                        │
+   │  app.jspoth.com — failover routing                 │
+   │  health check: :443/health/live every 30s          │
+   └──────────┬──────────────────────┬─────────────────┘
+              │ PRIMARY               │ SECONDARY (auto on failure)
+              ▼                       ▼
+   ┌─────────────────────┐  ┌─────────────────────────┐
+   │   us-east-2 (dev)   │  │    us-west-2 (DR)        │
+   │  VPC / EKS          │  │  VPC / EKS (pilot light) │
+   │  Karpenter          │  │  Karpenter               │
+   │  SQS / DynamoDB ────┼──┼──► Global Table replica  │
+   │  SSM / IRSA         │  │  SSM / IRSA              │
+   │  Go App (3 pods)    │  │  Go App (1 pod, scales)  │
+   └─────────────────────┘  └─────────────────────────┘
 ```
 
 ---
 
 ## 📚 References
 
+* Project write-up: [jspoth.com](https://jspoth.com)
+* DR documentation: [jspoth.com/dr.html](https://jspoth.com/dr.html)
 * Terraform docs: [https://developer.hashicorp.com/terraform](https://developer.hashicorp.com/terraform)
 * AWS Terraform provider: [https://registry.terraform.io/providers/hashicorp/aws/latest/docs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 * External Secrets Operator: [https://external-secrets.io](https://external-secrets.io)

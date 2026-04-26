@@ -51,6 +51,14 @@ deploy:
 dns:
 	$(MAKE) apply RESOURCE=dns
 
+# Deploy DR layers in dependency order (mirrors dev deploy).
+# Run kubectl apply (k8s-deploy workflow) after this, then make dns-dr.
+deploy-dr:
+	$(MAKE) apply ENV=DR RESOURCE=general
+	$(MAKE) apply ENV=DR RESOURCE=permissions
+	$(MAKE) apply ENV=DR RESOURCE=addons
+	$(MAKE) apply ENV=DR RESOURCE=messaging
+
 # Sync Route 53 DR failover record to the DR ALB.
 # Run after DR kubectl apply — DR ALB must exist before this layer resolves.
 dns-dr:
