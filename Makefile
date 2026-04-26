@@ -2,13 +2,24 @@ ENV      ?= dev
 RESOURCE ?= general
 DIR       = environments/$(ENV)/$(RESOURCE)
 
-.PHONY: init plan apply destroy deploy
+LAYERS = general permissions addons messaging datastores
+
+.PHONY: init plan apply destroy deploy check check-all dns
 
 init:
 	terraform -chdir=$(DIR) init
 
 plan:
 	terraform -chdir=$(DIR) plan
+
+check:
+	terraform -chdir=$(DIR) init && terraform -chdir=$(DIR) plan
+
+check-all:
+	@for layer in $(LAYERS); do \
+		echo "──── $$layer ────"; \
+		$(MAKE) check RESOURCE=$$layer ENV=$(ENV); \
+	done
 
 apply:
 	@if [ "$(RESOURCE)" = "addons" ]; then \
@@ -18,7 +29,7 @@ apply:
 			-target=module.karpenter.helm_release.karpenter && \
 		terraform -chdir=$(DIR) apply; \
 	else \
-		terraform -chdir=$(DIR) apply; \
+		terraform -chdir=$(DIR) init && terraform -chdir=$(DIR) apply; \
 	fi
 
 destroy:

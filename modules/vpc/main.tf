@@ -49,7 +49,7 @@ resource "aws_security_group" "sqs_endpoint" {
 
 resource "aws_vpc_endpoint" "sqs" {
   vpc_id              = module.vpc.vpc_id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.sqs"
+  service_name        = "com.amazonaws.${data.aws_region.current.region}.sqs"
   vpc_endpoint_type   = "Interface"
   subnet_ids          = module.vpc.private_subnets
   security_group_ids  = [aws_security_group.sqs_endpoint.id]
