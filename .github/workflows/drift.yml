@@ -40,11 +40,34 @@ jobs:
 
       - name: Check for Drift
         id: plan
-        continue-on-error: true 
+        continue-on-error: true
         run: terraform plan -detailed-exitcode -no-color
 
       - name: Alert on Drift
         if: steps.plan.outputs.exitcode == '2'
         run: |
-          echo "### ⚠️ DRIFT DETECTED in ${{ matrix.environment }}!" >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.plan.outputs.stdout }}"
+          echo "## ⚠️ DRIFT DETECTED in ${{ matrix.environment }}!" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.plan.outputs.stdout }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Extract Plan Summary
+        if: steps.plan.outputs.exitcode == '2'
+        run: |
+          SUMMARY=$(echo "${{ steps.plan.outputs.stdout }}" | grep "Plan:")
+          echo "### Summary" >> $GITHUB_STEP_SUMMARY
+          echo "$SUMMARY" >> $GITHUB_STEP_SUMMARY
+
+      - name: Analyze Drift (Filtered)
+        if: steps.plan.outputs.exitcode == '2'
+        run: |
+          OUTPUT="${{ steps.plan.outputs.stdout }}"
+
+          ADDED=$(echo "$OUTPUT" | grep -cE "^\s*\+ [a-zA-Z0-9_]+\.")
+          CHANGED=$(echo "$OUTPUT" | grep -cE "^\s*~ [a-zA-Z0-9_]+\.")
+          DESTROYED=$(echo "$OUTPUT" | grep -cE "^\s*- [a-zA-Z0-9_]+\.")
+
+          echo "### Resource-Level Breakdown" >> $GITHUB_STEP_SUMMARY
+          echo "- ➕ Added: $ADDED" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔄 Changed: $CHANGED" >> $GITHUB_STEP_SUMMARY
+          echo "- ❌ Destroyed: $DESTROYED" >> $GITHUB_STEP_SUMMARY
