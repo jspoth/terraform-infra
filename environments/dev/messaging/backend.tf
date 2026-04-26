@@ -3,7 +3,7 @@ terraform {
     bucket         = "jsp-test-tfstate"
     key            = "dev/messaging/terraform.tfstate"
     region         = "us-east-2"
-    dynamodb_table = "terraform-locks"
+    use_lockfile   = true
     encrypt        = true
   }
 }

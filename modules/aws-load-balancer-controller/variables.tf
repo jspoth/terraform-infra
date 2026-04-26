@@ -3,6 +3,12 @@ variable "cluster_name" {
   description = "Name of the EKS cluster"
 }
 
+variable "resource_suffix" {
+  type        = string
+  description = "Suffix appended to IAM policy and role names to avoid conflicts across clusters"
+  default     = ""
+}
+
 variable "vpc_id" {
   type        = string
   description = "VPC ID where the cluster is deployed"

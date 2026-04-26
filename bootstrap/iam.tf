@@ -15,7 +15,7 @@ resource "aws_iam_role" "github_actions_role" {
 
         Condition = {
           StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_repo}:*"
+            "token.actions.githubusercontent.com:sub" = [for repo in var.github_repo : "repo:${var.github_org}/${repo}:*"]
           }
         }
       }
