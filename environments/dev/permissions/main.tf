@@ -146,6 +146,11 @@ resource "aws_iam_policy" "cost_optimizer" {
       },
       {
         Effect   = "Allow"
+        Action   = ["pricing:GetProducts"]
+        Resource = "*"
+      },
+      {
+        Effect   = "Allow"
         Action   = ["sns:Publish"]
         Resource = data.aws_sns_topic.cost_optimizer_alerts.arn
       },
@@ -165,6 +170,7 @@ resource "aws_iam_policy" "cost_optimizer" {
           "elasticloadbalancing:Describe*",
           "eks:DescribeCluster",
           "cloudwatch:GetMetricData",
+          "cloudwatch:GetMetricStatistics",
         ]
         Resource = "*"
       },

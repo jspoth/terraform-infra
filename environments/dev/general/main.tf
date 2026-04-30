@@ -88,3 +88,9 @@ resource "aws_eks_access_policy_association" "github_actions" {
 output "eks_cluster_endpoint" {
   value = module.eks.cluster_endpoint
 }
+
+resource "aws_ssm_parameter" "eks_cluster_name" {
+  name  = "/dev/app/eks/cluster-name"
+  type  = "String"
+  value = module.eks.cluster_name
+}
