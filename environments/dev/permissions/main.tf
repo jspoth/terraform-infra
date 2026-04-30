@@ -135,9 +135,13 @@ resource "aws_iam_policy" "cost_optimizer" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = ["bedrock:InvokeModel"]
-        Resource = "arn:aws:bedrock:${var.region}::foundation-model/*"
+        Effect = "Allow"
+        Action = ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"]
+        Resource = [
+          "arn:aws:bedrock:${var.region}::foundation-model/*",
+          "arn:aws:bedrock:*::foundation-model/*",
+          "arn:aws:bedrock:${var.region}:${data.aws_caller_identity.current.account_id}:inference-profile/*",
+        ]
       },
       {
         Effect   = "Allow"
